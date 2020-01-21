@@ -1,0 +1,26 @@
+#!/usr/bin/expect
+
+set VPN_USER [lindex $argv 0]
+set VPN_PASS [lindex $argv 1]
+
+log_file /tmp/openvpn.status
+
+spawn openvpn --config /opt/vpn/config.ovpn
+
+expect {
+    "Enter Auth Username:" {
+        send "$VPN_USER\n"
+        expect {
+            "Enter Auth Password:" {
+                send "$VPN_PASS\n"
+                expect {
+                    "Initialization Sequence Completed" {
+                        send_log "initialized"
+                    }
+                }
+            }
+        }
+    }
+}
+
+interact

@@ -1,0 +1,45 @@
+#!/bin/bash
+
+function exitError() {
+    echo -e "\n[ERROR] $1\n"
+    exit 1
+}
+
+if [ "${OPENVPN_USER}" == "" ]; then
+    exitError "OPENVPN_USER is not set!"
+fi
+
+if [ "${OPENVPN_PASS}" == "" ]; then
+    exitError "OPENVPN_PASS is not set!"
+fi
+
+LOG_FILE="/tmp/openvpn.status"
+
+echo '' > "$LOG_FILE"
+
+echo "[INFO] LAUNCHING VPN"
+/usr/bin/openvpn-config "$OPENVPN_USER" "$OPENVPN_PASS" &
+
+echo "[INFO] WAITING FOR VPN CONNECTION"
+while [ "`grep initialized $LOG_FILE`" == "" ]; do
+    sleep 1s
+    if [ "`ps ax | grep openvpn-config`" == "" ]; then
+        exitError "openvpn-config is not running anymore!"
+    fi
+done
+
+VPN_PID="`ps ax | grep 'openvpn --config' | grep -v grep | awk '{print $1}'`"
+
+echo "[INFO] LAUNCHING APP"
+su -c "$@" $DOCKER_USERNAME
+echo "[INFO] APP STOPPED"
+
+echo "[INFO] KILLING VPN ($VPN_PID)"
+kill -SIGINT $VPN_PID
+
+ps ax
+
+echo "[INFO] WAITING FOR VPN TO DIE"
+while [ "`ps ax | grep openvpn-config | grep -v grep`" != "" ]; do
+    sleep 1s
+done
