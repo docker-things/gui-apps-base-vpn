@@ -1,9 +1,45 @@
 #!/bin/bash
 
 function exitError() {
-    echo -e "\n[ERROR] $1\n"
+    echo -e "\n[`date +"%Y-%m-%d %H:%M:%S"`] [ERROR] $1\n"
     exit 1
 }
+
+function info() {
+    echo -e "\n[`date +"%Y-%m-%d %H:%M:%S"`] [INFO] $1"
+}
+
+function getPidsOf() {
+    ps ax | grep $1 | grep -v grep | awk '{print $1}' | sed -e ':a;N;$!ba;s/\n/ /g'
+}
+
+function startVpn() {
+    LOG_FILE="/tmp/openvpn.status"
+
+    echo '' > "$LOG_FILE"
+
+    info "LAUNCHING VPN"
+    /usr/bin/openvpn-config "$OPENVPN_USER" "$OPENVPN_PASS" &
+
+    info "WAITING FOR VPN CONNECTION"
+    while [ "`grep initialized $LOG_FILE`" == "" ]; do
+        sleep 1s
+        if [ "`ps ax | grep openvpn-config`" == "" ]; then
+            info "openvpn-config is not running anymore!"
+            stopVpn
+            startVpn
+            break
+        fi
+    done
+}
+
+function stopVpn() {
+    VPN_PIDS="`getPidsOf openvpn`"
+
+    info "KILLING VPN ($VPN_PIDS)"
+    kill -SIGINT $VPN_PIDS
+}
+
 
 if [ "${OPENVPN_USER}" == "" ]; then
     exitError "OPENVPN_USER is not set!"
@@ -13,33 +49,37 @@ if [ "${OPENVPN_PASS}" == "" ]; then
     exitError "OPENVPN_PASS is not set!"
 fi
 
-LOG_FILE="/tmp/openvpn.status"
+VPN_ALREADY_RUNNING="`getPidsOf openvpn`"
 
-echo '' > "$LOG_FILE"
-
-echo "[INFO] LAUNCHING VPN"
-/usr/bin/openvpn-config "$OPENVPN_USER" "$OPENVPN_PASS" &
-
-echo "[INFO] WAITING FOR VPN CONNECTION"
-while [ "`grep initialized $LOG_FILE`" == "" ]; do
-    sleep 1s
-    if [ "`ps ax | grep openvpn-config`" == "" ]; then
-        exitError "openvpn-config is not running anymore!"
+if [ "$VPN_ALREADY_RUNNING" == "" ]; then
+    yad --progress --pulsate --progress-text="Launching openvpn..."
+    startVpn
+    YAD_PIDS="`getPidsOf yad`"
+    if [ "$YAD_PIDS" != "" ]; then
+        kill -9 $YAD_PIDS
     fi
-done
+else
+    info "openvpn already running ($VPN_ALREADY_RUNNING)"
+    ps ax | grep openvpn
+fi
 
-VPN_PID="`ps ax | grep 'openvpn --config' | grep -v grep | awk '{print $1}'`"
-
-echo "[INFO] LAUNCHING APP"
+info "LAUNCHING APP"
 su -c "$@" $DOCKER_USERNAME
-echo "[INFO] APP STOPPED"
+info "APP STOPPED"
 
-echo "[INFO] KILLING VPN ($VPN_PID)"
-kill -SIGINT $VPN_PID
+if [ "$VPN_ALREADY_RUNNING" == "" ]; then
+    stopVpn
 
-ps ax
+    info "ps ax:"
+    ps ax
 
-echo "[INFO] WAITING FOR VPN TO DIE"
-while [ "`ps ax | grep openvpn-config | grep -v grep`" != "" ]; do
-    sleep 1s
-done
+    info "WAITING FOR VPN TO DIE"
+    while [ "`ps ax | grep 'openvpn --config' | grep -v grep`" != "" ]; do
+        info "RUNNING:"
+        ps ax | grep 'openvpn' | grep -v grep
+
+        sleep 1s
+    done
+
+    info "DONE"
+fi

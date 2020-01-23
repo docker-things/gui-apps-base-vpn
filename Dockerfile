@@ -7,6 +7,7 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends \
         openvpn \
         expect \
+        yad \
  && apt-get clean -y \
  && apt-get autoclean -y \
  && apt-get autoremove -y \
@@ -14,3 +15,6 @@ RUN apt-get update \
  && chmod +x \
         /usr/bin/openvpn-config \
         /usr/bin/with-vpn
+
+# ENTRYPOINT
+# ENTRYPOINT ["/usr/bin/with-vpn", "/bin/bash"]
