@@ -14,6 +14,3 @@ RUN apt-get update \
  && chmod +x \
         /usr/bin/openvpn-config \
         /usr/bin/with-vpn
-
-# ENTRYPOINT
-ENTRYPOINT ["/usr/bin/with-vpn","echo 'CONNECTION DONE' && whoami && sleep 5s"]
